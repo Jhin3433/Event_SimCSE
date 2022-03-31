@@ -39,27 +39,35 @@ class Event_CL_Dataset(Dataset):
         self.Event_Triples = []
         with open(Event_CL_file, "r") as f:
             for line in f:
-                try:
-                    split_line = line.split("||")
-                    synset_node = split_line[0].strip(" ")
-                    pos_1_event, pos_1_arg = split_line[1].strip(" ").split("_")#!!!!!!!!!新版把 _ 改成了$
-                    pos_2_event, pos_2_arg = split_line[2].strip(" ").split("_")
-                    neg_3_event, neg_3_arg = split_line[3].strip("\n").strip(" ").split("_")
-                    self.Event_Triples.append([synset_node, (pos_1_event.lower(), pos_1_arg.lower()), (pos_2_event.lower(), pos_2_arg.lower()), (neg_3_event.lower(), neg_3_arg.split(",")[0].lower())])
-                    #"都弄为小写, neg_event有多个arg时只需第一个"
-                    
-                    
-                    for word in pos_1_event.split(" "):
-                        self.word_set.add(word)
-                    for word in pos_2_event.split(" "):
-                        self.word_set.add(word)
-                    for word in neg_3_event.split(" "):
-                        self.word_set.add(word)        
-                    for i in self.word_set:
-                        self.vocab_dic[i] = len(self.vocab_dic) + 1#9333个词 word_to_id
-                except:
-                    continue
+        
+                split_line = line.split("||")
+                synset_node = split_line[0].strip(" ")
+                # pos_1_event = split_line[1].strip(" ")
+                # pos_2_event = split_line[2].strip(" ")
+                # neg_3_event = split_line[3].strip("\n").strip(" ")
+                # self.Event_Triples.append([synset_node, pos_1_event.lower(), pos_2_event.lower(), neg_3_event.lower()])
 
+    
+                # pos_1_event, pos_1_arg = [x.lower() for x in split_line[1].strip(" ").split("<>")]
+                pos_1_event, pos_1_arg = split_line[1].strip(" ").split("<>")
+                pos_2_event, pos_2_arg = split_line[2].strip(" ").split("<>")
+                neg_3_event, neg_3_arg = split_line[3].strip("\n").strip(" ").split("<>")
+                self.Event_Triples.append([synset_node, (pos_1_event, pos_1_arg), (pos_2_event, pos_2_arg), (neg_3_event, neg_3_arg.split(",")[0])])
+                #"都弄为小写, neg_event有多个arg时只需第一个"
+                
+                
+                for word in pos_1_event.split(" "):
+                    self.word_set.add(word)
+                for word in pos_2_event.split(" "):
+                    self.word_set.add(word)
+                for word in neg_3_event.split(" "):
+                    self.word_set.add(word)        
+                    
+                if len(self.Event_Triples) > 1000 :
+                    break
+
+        for i in self.word_set:
+            self.vocab_dic[i] = len(self.vocab_dic) + 1#9333个词 word_to_id
     def __len__(self):
         return len(self.Event_Triples)
                 

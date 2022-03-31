@@ -16,8 +16,8 @@ import torch.nn.functional as F
 from HyperGraph import DocumentGraph
 from Event_CL_Dataset import Event_CL_Dataset
 import scipy.sparse as sp
-
-
+from HyperGraph import target_event_Hypergraph_prepare
+import sys
 #此版本加入超图，Event_Glove_CL_1.py只有event和arg的emb 结合
 def eval_model(ECL_model):
     ECL_model.eval()
@@ -76,23 +76,19 @@ class Event_CL(torch.nn.Module):
         
     def HyperGraph_init(self):
         #HyperGraph 
-        self.dic_event_to_synset = pickle.load(open("./resource/dict_event_to_synset.pickle","rb"))
-        self.dict_synset_to_event = pickle.load(open("./resource/dict_synset_to_event.pickle","rb"))
-        self.HyperGraph_Model = DocumentGraph(len(self.vocab_dic), self.dict_synset_to_event)
 
-    def HyperGraphConstruction(self, event):
-        other_event = []
-        if event in self.dic_event_to_synset:
-            synsets = self.dic_event_to_synset[event]
-            for synset in synsets:
-                other_event += self.dict_synset_to_event[synset]
-        reshape_other_event = []
-        for event in other_event:
-            reshape_other_event.append(event.split(" "))
+        self.HyperGraph_Model = DocumentGraph(self.train_vocab_dic) #len(self.vocab_dic)用来创建词典embeding，词都小写了
+    def HyperGraphConstruction(self, batch_event):
+        
+        other_event_ids = []
+        for event in batch_event:
+            other_event_ids.append(self.dict_event_hyper[event][0])
+        # reshape_other_event = []
+        # for event in other_event:
+        #     reshape_other_event.append(event.split(" "))
             
-        reshape_other_event_id = list(map(ECL_model.Glove.transform, reshape_other_event))
             
-        inputs = reshape_other_event_id
+        inputs = other_event_ids
         
         #构造超图
         items, n_node, HT, alias_inputs, node_masks, node_dic = [], [], [], [], [], []
@@ -144,8 +140,8 @@ class Event_CL(torch.nn.Module):
                 s = max(cols) + 1
             if self.training:
                 for i in node:
-                    if i in self.dic_event_to_synset:
-                        temp = self.dic_event_to_synset[i]          
+                    if i in self.arg_related_synset:#这个词id应该是在synset node包含的事件id里
+                        temp = self.arg_related_synset[i]          
                         rows += [node_dic[idx][i]]*len(temp)#该doc中包含的keyword的id，len(temp)是该keyword与topic的关联个数
                         cols += [synset + s for synset in temp]#这把topic的id和该doc中词的id区分开了，但是不就会导致每个doc所对应的topic id不相同吗？
                         vals += [1.0]*len(temp)
@@ -230,9 +226,9 @@ if __name__ == "__main__":
 
     ECL_model = Event_CL(pc, pool_type = pc.pool_type)
     ECL_model.to(pc.device)
-    
-    
+    ECL_model.dict_event_hyper, ECL_model.arg_related_synset = target_event_Hypergraph_prepare(ECL_model)
 
+    sys.exit()
     
     if pc.do_train:
         
@@ -243,7 +239,8 @@ if __name__ == "__main__":
         ECL_model.train_vocab_dic = ECLD.vocab_dic
         ECL_model.HyperGraph_init()
         
-    
+        
+        
         train_dataloader = DataLoader(ECLD, batch_size = pc.batch_size, shuffle = True)
         optimizer = torch.optim.Adagrad(ECL_model.parameters(), lr = pc.learning_rate , initial_accumulator_value=pc.initial_accumulator_value)
         ECL_model.train()
@@ -253,37 +250,41 @@ if __name__ == "__main__":
 
                 synset_node = event_data[0]
 
+                #args embedding
                 raw_event_arg = event_data[1][1]
                 pos_event_arg = event_data[2][1]
                 neg_event_arg = event_data[3][1]
                 raw_event_arg_id = torch.tensor(list(map(ECL_model.Glove.transform, raw_event_arg))).to(pc.device) 
                 pos_event_arg_id = torch.tensor(list(map(ECL_model.Glove.transform, pos_event_arg))).to(pc.device)
                 neg_event_arg_id = torch.tensor(list(map(ECL_model.Glove.transform, neg_event_arg))).to(pc.device) 
-                raw_event_arg_embeddings = ECL_model.composition_model.embeddings(raw_event_arg_id)#[batch, event_length, emb_size]
+                raw_event_arg_embeddings = ECL_model.composition_model.embeddings(raw_event_arg_id)#[batch, event_length, emb_size] [batch,1,emb_size]
                 pos_event_arg_embeddings = ECL_model.composition_model.embeddings(pos_event_arg_id)
                 neg_event_arg_embeddings = ECL_model.composition_model.embeddings(neg_event_arg_id)
 
+                #event embeddings
                 raw_event = event_data[1][0]
                 pos_event = event_data[2][0]
                 neg_event = event_data[3][0]
                 
-                raw_event_hypergraph = list(map(ECL_model.HyperGraphConstruction, raw_event))
-                pos_event_hypergraph = list(map(ECL_model.HyperGraphConstruction, pos_event))
-                neg_event_hypergraph = list(map(ECL_model.HyperGraphConstruction, neg_event))
-                #HyperGraphRepresentation
-                
-                
                 raw_event_id = torch.tensor(list(map(ECL_model.Glove.transform, raw_event))).to(pc.device) #[batch, event_length] 一个event的三个词，event_length = 3
                 pos_event_id = torch.tensor(list(map(ECL_model.Glove.transform, pos_event))).to(pc.device)
                 neg_event_id = torch.tensor(list(map(ECL_model.Glove.transform, neg_event))).to(pc.device)
-                raw_event_embeddings = ECL_model.composition_model.embeddings(raw_event_id)#[batch, event_length, emb_size]
+                raw_event_embeddings = ECL_model.composition_model.embeddings(raw_event_id)#[batch, event_length, emb_size] [batch,3,emb_size]
                 pos_event_embeddings = ECL_model.composition_model.embeddings(pos_event_id)
                 neg_event_embeddings = ECL_model.composition_model.embeddings(neg_event_id)
                 
-
+                #HyperGraph embeddings
+                raw_event_hypergraph = ECL_model.HyperGraphConstruction(raw_event)
+                pos_event_hypergraph = ECL_model.HyperGraphConstruction(pos_event)
+                neg_event_hypergraph = ECL_model.HyperGraphConstruction(neg_event)
+                
+                
+                #comprehensive embeddings
                 pooler_raw_event_embeddings = ECL_model.pooler(raw_event_embeddings, raw_event_arg_embeddings, pool_type = pc.pool_type)
                 pooler_pos_event_embeddings = ECL_model.pooler(pos_event_embeddings, pos_event_arg_embeddings, pool_type = pc.pool_type)
                 pooler_neg_event_embeddings = ECL_model.pooler(neg_event_embeddings, neg_event_arg_embeddings, pool_type = pc.pool_type)
+                
+                
                 loss, _ = ECL_model(pooler_raw_event_embeddings, pooler_pos_event_embeddings, pooler_neg_event_embeddings)
                 loss.requires_grad_()
                 loss.backward()

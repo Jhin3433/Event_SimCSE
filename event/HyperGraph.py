@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
+import os
+import pickle
 
 
 class HyperGraphAttentionLayerSparse(nn.Module):
@@ -136,7 +138,7 @@ class HGNN_ATT(nn.Module):
         return x
     
 class DocumentGraph(nn.Module):
-    def __init__(self, vocab_dic, dict_synset_to_event):
+    def __init__(self, vocab_dic):
         super(DocumentGraph, self).__init__() #100
         self.hidden_size = 100
         self.n_node = len(vocab_dic)
@@ -148,11 +150,71 @@ class DocumentGraph(nn.Module):
         self.layer_normH = nn.LayerNorm(self.hidden_size, eps=1e-6)
         # if self.normalization:
         #     self.layer_normC = nn.LayerNorm(self.n_categories, eps=1e-6)
+        self.reset_parameters()
+        
+        
         self.hgnn = HGNN_ATT(self.initial_feature, self.initial_feature, self.hidden_size, dropout = self.dropout)
         
         
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.hidden_size)
+        for weight in self.parameters():
+            weight.data.uniform_(-stdv, stdv)
+            
     def forward(self, inputs, HT):
         
         hidden = self.Hypergraph_embedding(inputs)
         nodes = self.hgnn(hidden, HT)
         return nodes
+
+
+
+
+def target_event_Hypergraph_prepare(ECL_model):
+    
+    if os.path.exists("./resource/dict_event_hyper.pickle") and os.path.exists("./resource/arg_related_synset.pickle"):
+        dict_event_hyper = pickle.load(open("./resource/dict_event_hyper.pickle","rb"))
+        arg_related_synset = pickle.load(open("./resource/arg_related_synset.pickle","rb"))
+    else:
+        dic_event_to_synset = pickle.load(open("./resource/dict_event_to_synset.pickle","rb"))
+        dict_synset_to_event = pickle.load(open("./resource/dict_synset_to_event.pickle","rb"))
+
+        all_synset = set()
+        for synset in dict_synset_to_event:
+            all_synset.add(synset)
+            
+        dict_synset_index = {}
+        for i in all_synset:
+            dict_synset_index[i] = len(dict_synset_index) + 1
+            
+
+        dict_event_hyper = {}
+        arg_related_synset = {}#类比分类中的self.keywords
+
+        for event in dic_event_to_synset:
+            other_event = []
+            # other_event_synset = []
+            # if event in ECL_model.dic_event_to_synset:
+            synsets_list = dic_event_to_synset[event]
+            for arg_synset in synsets_list:
+                synset = arg_synset[1]
+                for arg_event in dict_synset_to_event[synset]:
+                    other_event.append(list(ECL_model.Glove.transform(arg_event[1])))
+                    
+                    arg_id = ECL_model.Glove.transform(arg_event[0])[0]
+                    if arg_id not in arg_related_synset:
+                        arg_related_synset[arg_id] = dict_synset_index[synset]
+                    
+                    # other_event_synset += [synset] * len(other_event)
+            dict_event_hyper[event] = other_event
+        
+        pickle.dump(dict_event_hyper, open('resource/dict_event_hyper.pickle', 'wb'))
+        pickle.dump(arg_related_synset, open('resource/arg_related_synset.pickle', 'wb'))
+        print("dict_event_hyper.pickle is saved well.")
+        print("arg_related_synset.pickle is saved well.")
+
+    del dic_event_to_synset
+    del dict_synset_to_event
+    return dict_event_hyper, arg_related_synset
+    
+    

@@ -7,10 +7,10 @@ from glove_utils import Glove
 import torch.nn as nn
 from utils import Similarity
 import logging
-from model import LowRankNeuralTensorNetwork
+from NTN_Model import LowRankNeuralTensorNetwork
 from Eval_func import Hard_Similarity_eval, Hard_Similarity_Extention_eval, Transitive_eval
 import argparse
-
+from Event_CL_Dataset import Event_CL_Dataset
 
 #该文件为未加入hypergraph的有效版本，备份使用
 def eval_model(ECL_model):
@@ -27,65 +27,10 @@ class Parameter_Config:
         self.batch_size = args.batch
         self.initial_accumulator_value = args.iav
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.do_train = False
+        self.do_train = True
         self.do_eval = True
         self.pool_type = "LowRankNeuralTensorNetwork"
-class Event_CL_nyt_dataset_6(Dataset):
-    def __init__(self, Event_CL_dir):
-        self.Event_Triples = []
-        for path, dir_list, file_list in os.walk(Event_CL_dir):  
-            for file_name in file_list:  
-                with open(os.path.join(path, file_name), "r") as f:
-                    for line in f:
-                        if len(line.strip("\n").split(",")) == 3:
-                            raw_event, positive_event, negtive_event = line.strip("\n").split(",")
-                            continue
-                        sub_raw_event, verb_raw_event, obj_raw_event = raw_event.strip().split("|")
-                        sub_positive_event, verb_positive_event, obj_positive_event = positive_event.strip().split("|")
-                        sub_negtive_event, verb_negtive_event, obj_negtive_event = negtive_event.strip().split("|")
-                        # self.Event_Triples.append([SimpleTuple(sub_raw_event, verb_raw_event, obj_raw_event), SimpleTuple(sub_positive_event, verb_positive_event, obj_positive_event), SimpleTuple(sub_negtive_event, verb_negtive_event, obj_negtive_event)])
-                        #只取只有单个词的
-                        if len(sub_raw_event.split(" ")) ==  len(verb_raw_event.split(" ")) == len(obj_raw_event.split(" ")) == len(sub_positive_event.split(" ")) == len(verb_positive_event.split(" ")) == len(obj_positive_event.split(" ")) == len(sub_negtive_event.split(" ")) ==len(verb_negtive_event.split(" ")) ==len(obj_negtive_event.split(" ")) != 2:
-                            self.Event_Triples.append([raw_event.strip(), positive_event.strip(), negtive_event.strip()])
-                                            
-    def __len__(self):
-        return len(self.Event_Triples)
 
-    def __getitem__(self, idx):
-        
-        Event_Triple = self.Event_Triples[idx]
-        
-        return Event_Triple[0], Event_Triple[1], Event_Triple[2]
-        
-        
-
-
-class Event_CL_Dataset(Dataset):
-    def __init__(self, Event_CL_file):
-        self.Event_Triples = []
-        with open(Event_CL_file, "r") as f:
-            for line in f:
-                try:
-                    split_line = line.split("||")
-                    synset_node = split_line[0].strip(" ")
-                    pos_1_event, pos_1_arg = split_line[1].strip(" ").split("_")#!!!!!!!!!新版把 _ 改成了$
-                    pos_2_event, pos_2_arg = split_line[2].strip(" ").split("_")
-                    neg_3_event, neg_3_arg = split_line[3].strip("\n").strip(" ").split("_")
-                    self.Event_Triples.append([synset_node, (pos_1_event.lower(), pos_1_arg.lower()), (pos_2_event.lower(), pos_2_arg.lower()), (neg_3_event.lower(), neg_3_arg.split(",")[0].lower())])
-                    #"都弄为小写, neg_event有多个arg时只需第一个"
-                except:
-                    continue
-
-    def __len__(self):
-        return len(self.Event_Triples)
-                
-    def __getitem__(self, idx):
-        
-        Event_Triple = self.Event_Triples[idx]
-        
-        return Event_Triple[0], Event_Triple[1], Event_Triple[2] ,Event_Triple[3]    
-                
-            
 
 class Event_CL(torch.nn.Module):
     def __init__(self, pc, pool_type = "LowRankNeuralTensorNetwork" ) -> None:
@@ -142,7 +87,7 @@ class Event_CL(torch.nn.Module):
                 subj_emb = event_emb.view(-1, event_emb.shape[2])[0:-1:3]
                 verb_emb = event_emb.view(-1, event_emb.shape[2])[1:-1:3]
                 obj_emb = event_emb.view(-1, event_emb.shape[2])[2::3] #如果是[2:-1:3] 取不到最后一个tensor
-                event_emb = self.composition_model(subj_emb, verb_emb, obj_emb)
+                event_emb = self.composition_model(subj_emb, verb_emb, obj_emb) 
                 event_emb = self.compose_event_with_arg(torch.cat((event_arg_embedding.squeeze(), event_emb),1))
             else:
                 subj_emb = event_emb.view(-1, event_emb.shape[2])[0:-1:3]
@@ -165,7 +110,7 @@ if __name__ == "__main__":
         arg_str = arg_str + "_" + arg + "_" + str(getattr(args, arg))
     
     
-    logging.basicConfig(filename='./log_Event_Glove_CL/Event_Glove_CL{}.log'.format(arg_str), format='%(asctime)s | %(levelname)s | %(message)s', level=logging.DEBUG, filemode='w') #有filename是文件日志输出,filemode是’w’的话，文件会被覆盖之前生成的文件会被覆盖
+    logging.basicConfig(filename='./log_Event_Glove_CL/Only_CL/Event_Glove_Only_CL{}.log'.format(arg_str), format='%(asctime)s | %(levelname)s | %(message)s', level=logging.DEBUG, filemode='w') #有filename是文件日志输出,filemode是’w’的话，文件会被覆盖之前生成的文件会被覆盖
 
     seed = 42
     torch.manual_seed(seed)
@@ -181,7 +126,7 @@ if __name__ == "__main__":
     if pc.do_train:
         
         # Event_CL_dir = "../LDCCorpus/gigaword_eng_5/data/nyt_dataset_6" #对应Event_CL_nyt_dataset_6
-        Event_CL_file = "./resource/triple_events/triple_events_0.txt"
+        Event_CL_file = "./resource/hard_triple_events/triple_events_0.txt"
         ECLD = Event_CL_Dataset(Event_CL_file)
         train_dataloader = DataLoader(ECLD, batch_size = pc.batch_size, shuffle = True)
         optimizer = torch.optim.Adagrad(ECL_model.parameters(), lr = pc.learning_rate , initial_accumulator_value=pc.initial_accumulator_value)
@@ -224,7 +169,7 @@ if __name__ == "__main__":
                 # for name, param in ECL_model.named_parameters():
                 #     if param.requires_grad and name == "composition_model.embeddings.weight":
                 #         print(param)
-                if batch % 100 == 0:
+                if batch % 50 == 0:
                     loss, current = loss.item(), batch * len(event_data)
                     logging.info(f"loss: {loss:>7f}  [{current:>5d}/{pc.batch_size:>5d}]")
                     eval_model(ECL_model)

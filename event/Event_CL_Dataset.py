@@ -32,9 +32,7 @@ class Event_CL_nyt_dataset_6(Dataset):
 
 
 class Event_CL_Dataset(Dataset):
-    def __init__(self, Event_CL_file):
-        self.word_set = set()
-        self.vocab_dic = {}
+    def __init__(self, Event_CL_file, Hyper_file  = None):
 
         self.Event_Triples = []
         with open(Event_CL_file, "r") as f:
@@ -55,24 +53,25 @@ class Event_CL_Dataset(Dataset):
                 self.Event_Triples.append([synset_node, (pos_1_event, pos_1_arg), (pos_2_event, pos_2_arg), (neg_3_event, neg_3_arg.split(",")[0])])
                 #"都弄为小写, neg_event有多个arg时只需第一个"
                 
-                
-                for word in pos_1_event.split(" "):
-                    self.word_set.add(word)
-                for word in pos_2_event.split(" "):
-                    self.word_set.add(word)
-                for word in neg_3_event.split(" "):
-                    self.word_set.add(word)        
-                    
-                if len(self.Event_Triples) > 1000 :
-                    break
+              
+                # if len(self.Event_Triples) > 1000 :
+                #     break
+        self.event_hyper = []
+        if Hyper_file:
+            with open(Event_CL_file, "r") as f:
+                for line in f:
+                    split_line = line.split("||")
+                    self.event_hyper.append([split_line[0].strip(" "), split_line[1].strip(" "), split_line[2].strip("\n").strip(" ")])
 
-        for i in self.word_set:
-            self.vocab_dic[i] = len(self.vocab_dic) + 1#9333个词 word_to_id
+
     def __len__(self):
         return len(self.Event_Triples)
                 
     def __getitem__(self, idx):
         
         Event_Triple = self.Event_Triples[idx]
-        
-        return Event_Triple[0], Event_Triple[1], Event_Triple[2] ,Event_Triple[3]   
+        if self.event_hyper == []:
+            return Event_Triple[0], Event_Triple[1], Event_Triple[2] ,Event_Triple[3]
+        else:
+            Event_Hyper = self.event_hyper[idx]
+            return Event_Triple[0], Event_Triple[1], Event_Triple[2] ,Event_Triple[3], Event_Hyper[0], Event_Hyper[1], Event_Hyper[2]   

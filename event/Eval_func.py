@@ -75,3 +75,27 @@ def Transitive_eval(ECL_model):
 
     return 
 
+
+
+def Hard_Similarity_only_hyper_eval(EH_model):
+    cosine_similarity = nn.CosineSimilarity(dim=1)
+    input1, input2, input3, input4 = Event_Glove_CL_load_hard_similarity_dataset(path = './resource/hard.txt', if_hyper=True)
+    num_correct = 0
+
+
+    
+    with torch.no_grad():
+
+        if EH_model.HyperGraph_Model.if_Related_Hyper:
+            pass
+        else:
+            input1 = EH_model.HyperGraph_Model(EH_model.HyperGraph_Model.HyperGraphConstruction(input1))
+            input2 = EH_model.HyperGraph_Model(EH_model.HyperGraph_Model.HyperGraphConstruction(input2))
+            input3 = EH_model.HyperGraph_Model(EH_model.HyperGraph_Model.HyperGraphConstruction(input3))
+            input4 = EH_model.HyperGraph_Model(EH_model.HyperGraph_Model.HyperGraphConstruction(input4))
+        pos_sim = cosine_similarity(input1, input2)
+        neg_sim = cosine_similarity(input3, input4)
+        
+        num_correct = (pos_sim > neg_sim).sum().item()
+        accuracy = num_correct / input1.shape[0]
+        logging.info("Hard Similarity Task accurracy = {}".format(accuracy))

@@ -30,22 +30,35 @@ class Similarity(nn.Module):
         return self.cos(x, y) / self.temp
 
 
-def Event_Glove_CL_load_hard_similarity_dataset(path = './resource/hard.txt'):
+def Event_Glove_CL_load_hard_similarity_dataset(path = './resource/hard.txt', if_hyper = False):
     x_A = []
     x_B = []
     x_C = []
     x_D = []
     y = []
-    for line in open(path): 
-        pos_event1 = line.strip('\n').split('|')[0].strip(' ') + '|' + line.strip('\n').split('|')[1].strip(' ') + '|' + line.strip('\n').split('|')[2].strip(' ')
-        pos_event2 = line.strip('\n').split('|')[3].strip(' ') + '|' + line.strip('\n').split('|')[4].strip(' ') + '|' + line.strip('\n').split('|')[5].strip(' ')
-        x_A.append(pos_event1)
-        x_B.append(pos_event2)
-        neg_event1 = line.strip('\n').split('|')[6].strip(' ') + '|' + line.strip('\n').split('|')[7].strip(' ') + '|' + line.strip('\n').split('|')[8].strip(' ')
-        neg_event2 = line.strip('\n').split('|')[9].strip(' ') + '|' + line.strip('\n').split('|')[10].strip(' ') + '|' + line.strip('\n').split('|')[11].strip(' ')
-        x_C.append(neg_event1)
-        x_D.append(neg_event2)
-    return (x_A, x_B, x_C, x_D)
+    if if_hyper:
+        for line in open(path): 
+            pos_event1 = line.strip('\n').split('|')[0].strip(' ') + ' ' + line.strip('\n').split('|')[1].strip(' ') + ' ' + line.strip('\n').split('|')[2].strip(' ')
+            pos_event2 = line.strip('\n').split('|')[3].strip(' ') + ' ' + line.strip('\n').split('|')[4].strip(' ') + ' ' + line.strip('\n').split('|')[5].strip(' ')
+            x_A.append(pos_event1)
+            x_B.append(pos_event2)
+            neg_event1 = line.strip('\n').split('|')[6].strip(' ') + ' ' + line.strip('\n').split('|')[7].strip(' ') + ' ' + line.strip('\n').split('|')[8].strip(' ')
+            neg_event2 = line.strip('\n').split('|')[9].strip(' ') + ' ' + line.strip('\n').split('|')[10].strip(' ') + ' ' + line.strip('\n').split('|')[11].strip(' ')
+            x_C.append(neg_event1)
+            x_D.append(neg_event2)
+        return (x_A, x_B, x_C, x_D) 
+
+    else:
+        for line in open(path): 
+            pos_event1 = line.strip('\n').split('|')[0].strip(' ') + '|' + line.strip('\n').split('|')[1].strip(' ') + '|' + line.strip('\n').split('|')[2].strip(' ')
+            pos_event2 = line.strip('\n').split('|')[3].strip(' ') + '|' + line.strip('\n').split('|')[4].strip(' ') + '|' + line.strip('\n').split('|')[5].strip(' ')
+            x_A.append(pos_event1)
+            x_B.append(pos_event2)
+            neg_event1 = line.strip('\n').split('|')[6].strip(' ') + '|' + line.strip('\n').split('|')[7].strip(' ') + '|' + line.strip('\n').split('|')[8].strip(' ')
+            neg_event2 = line.strip('\n').split('|')[9].strip(' ') + '|' + line.strip('\n').split('|')[10].strip(' ') + '|' + line.strip('\n').split('|')[11].strip(' ')
+            x_C.append(neg_event1)
+            x_D.append(neg_event2)
+        return (x_A, x_B, x_C, x_D)
 
 
 

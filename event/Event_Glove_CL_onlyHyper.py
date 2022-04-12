@@ -29,15 +29,15 @@ class Parameter_Config:
         self.batch_size = args.batch
         self.initial_accumulator_value = args.iav
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.do_train = True
-        self.do_eval = True
+        self.do_train = args.do_train
+        self.do_eval = args.do_eval
 
  
         self.if_Related_Hyper = args.if_doc_hyper
         # HyperGraph_Model Parameters
         self.hg_hidden_size = 100
         self.hg_dropout = 0.1
-        self.hg_initial_feature = 100
+        self.hg_initial_feature = 100 #词的embd size
 
 
 
@@ -81,7 +81,12 @@ if __name__ == "__main__":
     parser.add_argument('-batch', type=int, default=64, help='batch size')
     parser.add_argument('-iav', type=float32, default=0.1, help='initial_accumulator_value')
     parser.add_argument('-if_doc_hyper', action='store_true', help='if use events doc to construct hyper') # type = bool ❌
+    parser.add_argument('-do_train', action='store_true', help='if training') 
+    parser.add_argument('-do_eval', action='store_true', help='if eval') 
 
+    parser.add_argument('-hg_hidden_size', type=int, default=100, help='hyper model hidden size.') 
+    parser.add_argument('-hg_dropout', type=float32, default=0.3, help='hyper model dropout.') 
+    parser.add_argument('-hg_initial_feature', type=int, default=100, help='hyper model initial_feature.') 
 
     arg_str = ''
     args = parser.parse_args()
@@ -144,7 +149,7 @@ if __name__ == "__main__":
                 pos_event_hypergraph = EH_model.HyperGraph_Model(EH_model.HyperGraph_Model.HyperGraphConstruction(pos_event_hyper))
                 neg_event_hypergraph = EH_model.HyperGraph_Model(EH_model.HyperGraph_Model.HyperGraphConstruction(neg_event_hyper))
                 loss, _ = EH_model(raw_event_hypergraph, pos_event_hypergraph, neg_event_hypergraph)
-                loss.requires_grad_()
+                # loss.requires_grad_()
                 loss.backward()
                 optimizer.step()
 

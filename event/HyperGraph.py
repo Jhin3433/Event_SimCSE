@@ -59,7 +59,7 @@ class HyperGraphAttentionLayerSparse(nn.Module):
 
 
     def forward(self, x, adj):
-        x_4att = x.matmul(self.weight2)
+        x_4att = x.matmul(self.weight2)#第一个HyperGraphAttentionLayerSparse x: [batch,max_node, initial_emb_size] self.weight2 [initial_emb_size, initial_emb_size]
 
         if self.transfer:
             x = x.matmul(self.weight)
@@ -71,7 +71,7 @@ class HyperGraphAttentionLayerSparse(nn.Module):
 
         pair = adj.nonzero().t()        
 
-        get = lambda i: x_4att[i][adj[i].nonzero().t()[1]]
+        get = lambda i: x_4att[i][adj[i].nonzero().t()[1]] #adj [batch, edge_num, max_node]
         x1 = torch.cat([get(i) for i in torch.arange(x.shape[0]).long()])
 
 
@@ -162,28 +162,33 @@ class HyperGraph_Model(nn.Module):
         #Glove词典和 训练集词典对齐, https://blog.csdn.net/weixin_37763484/article/details/114274851
         self.n_node = len(self.vocab_dic)
         self.Glove = Glove('./resource/glove.6B.100d.ext.txt')
-        x = nn.init.xavier_normal_(nn.Parameter(torch.Tensor(self.n_node+1, self.initial_feature)))
-        for word in self.Glove.vocab_id:
-            if word in self.vocab_dic:
-                x[self.vocab_dic[word], :] = torch.tensor(self.Glove.embd[self.Glove.id(word), :])
 
-        self.Hypergraph_embedding = nn.Embedding(self.n_node+1, self.initial_feature, padding_idx=0, _weight=x)#nn.init.xavier_normal_
-
-        del self.Glove
-
-
-        
-        # self.n_categories = len(dict_synset_to_event)
         self.dropout = Parameter_Config.hg_dropout
         self.initial_feature = Parameter_Config.hg_initial_feature
         # self.normalization = False
         self.layer_normH = nn.LayerNorm(self.hidden_size, eps=1e-6)
         # if self.normalization:
         #     self.layer_normC = nn.LayerNorm(self.n_categories, eps=1e-6)
+        
+        
         self.reset_parameters()
-        
-        
         self.hgnn = HGNN_ATT(self.initial_feature, self.initial_feature, self.hidden_size, dropout = self.dropout)
+
+        num = 0
+        emb_randn = torch.randn(self.n_node+1, self.initial_feature)
+        for word in self.Glove.vocab_id:
+                if word in self.vocab_dic:
+                    emb_randn[self.vocab_dic[word]] = torch.FloatTensor(self.Glove.embd[self.Glove.id(word), :])
+                    num += 1
+
+        self.Hypergraph_embedding = nn.Embedding.from_pretrained(emb_randn)
+        # self.Hypergraph_embedding = nn.Embedding(self.n_node+1, self.initial_feature, padding_idx=0)#nn.init.xavier_normal_
+
+        del self.Glove
+
+
+        
+
         
 
 
@@ -276,8 +281,8 @@ class HyperGraph_Model(nn.Module):
                     synset_list = self.dic_event_to_synset[event]
                     for arg_synset in synset_list:
                         assert arg_synset[1] in self.dict_synset_index
+                        arg_id = self.Hyper_transform_to_id(arg_synset[0])[0]
                         if arg_synset[0] not in arg_related_synset:
-                            arg_id = self.Hyper_transform_to_id(arg_synset[0])[0]
                             arg_related_synset[arg_id] = set()
                             arg_related_synset[arg_id].add(self.dict_synset_index[arg_synset[1]])
                         else:
@@ -325,8 +330,8 @@ class HyperGraph_Model(nn.Module):
             
             for s in range(len(u_input)):
                 for i in np.arange(len(u_input[s])):
-                    if u_input[s][i] == 0:#doc中的sent中的word
-                        continue
+                    # if u_input[s][i] == 0:#doc中的sent中的word
+                    #     continue
 
                     rows.append(node_dic[idx][u_input[s][i]])
                     cols.append(s)
@@ -339,7 +344,7 @@ class HyperGraph_Model(nn.Module):
             if self.training:
                 for i in node:
                     if i in arg_related_synset:#这个词id应该是在synset node包含的事件id里
-                        temp = arg_related_synset[i]#因为一个词只与一个synset有关系，所以变成了列表，          
+                        temp = list(arg_related_synset[i])#因为一个词只与一个synset有关系，所以变成了列表，          
                         rows += [node_dic[idx][i]]*len(temp)#该doc中包含的keyword的id，len(temp)是该keyword与topic的关联个数
                         cols += [synset + s for synset in temp]#这把topic的id和该doc中词的id区分开了，但是不就会导致每个doc所对应的topic id不相同吗？
                         vals += [1.0]*len(temp)
